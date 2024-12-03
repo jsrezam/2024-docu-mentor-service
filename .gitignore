@@ -1,0 +1,70 @@
+# Byte-compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+env/
+venv/
+ENV/
+.venv/
+*.env
+
+# Distribution files
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.out
+*.err
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*.bak
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Secrets and environment files
+*.env
+.env.*
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Testing files
+.tox/
+.nox/
+coverage/
+*.cover
+*.py,cover
+.hypothesis/
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pylint
+.pylint.d/
+
+# Pyre
+.pyre/
+
+# Profiler data
+.prof
+
+# Pytest cache
+.pytest_cache/
+
+# ignoring DB files
+data/
+chroma/
