@@ -1,15 +1,13 @@
-import random
 import time
-from query_data import query_rag
 import gradio as gr
+from api_consumer import execute_rag_query
 
 
 def random_response(message, history):
-    response = query_rag(message,stream=False)
-    
+    response = execute_rag_query(url = "http://localhost:8000/run_subprocess_async",query_text= message)
     for i in range(len(response)):
         time.sleep(0.01)
-        yield "You typed: " + response[: i + 1]
+        yield "chatbot: " + response[: i + 1]
 
 ui_chatbot = gr.ChatInterface(random_response, type="messages", autofocus=False)
 

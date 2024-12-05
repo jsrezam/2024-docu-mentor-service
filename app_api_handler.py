@@ -1,13 +1,16 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
-from pydantic import BaseModel
-from query_data import query_rag
-from populate_database import main
-from fastapi.responses import StreamingResponse
-from typing import List
-from fastapi.middleware.cors import CORSMiddleware
-import subprocess
+import asyncio
+import json
 import os
+import re
+import subprocess
+from typing import List
 
+import uvicorn
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
+from query_rag import QueryResponse, query_rag
 
 app = FastAPI()
 
@@ -19,24 +22,30 @@ app.add_middleware(
     allow_methods=["*"],    
     allow_headers=["*"])
 
-
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB limit
 ALLOWED_MIME_TYPE = "application/pdf"
-UPLOAD_DIR = "data/"
+UPLOAD_DIR = "data/source"
 
-class QueryRequest(BaseModel):
-    text: str
+class SubmitQueryRequest(BaseModel):
+    query_text: str
 
-@app.post("/chatbot")
-def query(query: QueryRequest):
-    query_response = query_rag(query.text)
+def extract_json(input_text) -> str:
+    try:
+        json_match = re.search(r'{.*}', input_text, re.DOTALL)
+        if json_match:
+            json_content = json_match.group()
+            # Parse to ensure it's valid JSON
+            parsed_json = json.loads(json_content)
+            return parsed_json
+        else:
+            raise ValueError("No JSON content found.")
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON detected: {e}")
+
+@app.post("/chatbot-query")
+def submit_query_endpoint(request: SubmitQueryRequest) -> QueryResponse:
+    query_response =  query_rag(request.query_text)
     return query_response
-    # return {"Query Response": query_response}
-
-
-@app.post("/chatbot-stream")
-async def stream_query(query: QueryRequest):
-    return StreamingResponse(query_rag(query.text,stream=True), media_type="text/plain")
 
 @app.post("/upload-files")
 async def upload_files(files: List[UploadFile] = File(...)):
@@ -55,5 +64,42 @@ async def upload_files(files: List[UploadFile] = File(...)):
         with open(file_path, "wb") as f:
             f.write(content)
         saved_files.append({"filename": file.filename, "path": file_path})
-        subprocess.run(["python", 'populate_database.py'])
-    return {"saved_files": saved_files}
+
+    command = ["python", 'db_populate.py']
+    process = await asyncio.create_subprocess_exec(
+        *command,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await process.communicate()
+    return {
+        "saved_files": saved_files,
+        "stdout": stdout,
+        "stderr": stderr.decode(),
+        "returncode": process.returncode,
+    }
+
+@app.post("/run_subprocess_async/")
+async def run_subprocess_async(request: SubmitQueryRequest):
+    print(f"\"{request.query_text}\"")
+    command = ["python", "query_rag.py", f"\"{request.query_text}\"" ]  # Example long-running command
+
+    # Run the command asynchronously
+    process = await asyncio.create_subprocess_exec(
+        *command,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await process.communicate()
+    extracted_json = extract_json(stdout.decode())
+    return {
+        "stdout": extracted_json,
+        "stderr": stderr.decode(),
+        "returncode": process.returncode,
+    }
+
+if __name__ == "__main__":
+    # Run this as a server directly.
+    port = 8000
+    print(f"Running the FastAPI server on port {port}.")
+    uvicorn.run("app_api_handler:app", host="0.0.0.0", port=port, reload=True)

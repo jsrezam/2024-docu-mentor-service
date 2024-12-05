@@ -1,15 +1,16 @@
 import argparse
 import os
 import shutil
-from langchain_community.document_loaders.pdf import PyPDFDirectoryLoader
+from langchain_community.document_loaders import PyPDFDirectoryLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.schema.document import Document
+from langchain_chroma import Chroma
+
 from get_embedding_function import get_embedding_function
-from langchain_community.vectorstores.chroma import Chroma
 
 
-CHROMA_PATH = "chroma"
-DATA_PATH = "data"
+CHROMA_PATH = "data/chroma"
+DATA_SOURCE_PATH = "data/source"
 
 
 def main():
@@ -29,14 +30,14 @@ def main():
 
 
 def load_documents():
-    document_loader = PyPDFDirectoryLoader(DATA_PATH)
+    document_loader = PyPDFDirectoryLoader(DATA_SOURCE_PATH)
     return document_loader.load()
 
 
 def split_documents(documents: list[Document]):
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=800,
-        chunk_overlap=80,
+        chunk_size=600,
+        chunk_overlap=120,
         length_function=len,
         is_separator_regex=False,
     )
@@ -51,6 +52,8 @@ def add_to_chroma(chunks: list[Document]):
 
     # Calculate Page IDs.
     chunks_with_ids = calculate_chunk_ids(chunks)
+    # for chunk in chunks:
+    #     print(f"Chunk Page Sample: {chunk.metadata['id']}\n{chunk.page_content}\n\n")
 
     # Add or Update the documents.
     existing_items = db.get(include=[])  # IDs are always included by default
@@ -67,7 +70,6 @@ def add_to_chroma(chunks: list[Document]):
         print(f"👉 Adding new documents: {len(new_chunks)}")
         new_chunk_ids = [chunk.metadata["id"] for chunk in new_chunks]
         db.add_documents(new_chunks, ids=new_chunk_ids)
-        db.persist()
     else:
         print("✅ No new documents to add")
 
@@ -95,7 +97,7 @@ def calculate_chunk_ids(chunks):
         chunk_id = f"{current_page_id}:{current_chunk_index}"
         last_page_id = current_page_id
 
-        # Add it to the page meta-data.
+        # Add it to the chunk meta-data.
         chunk.metadata["id"] = chunk_id
 
     return chunks
